@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>CoreBank Teller Console</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='legacy.css') }}">
+</head>
+<body>
+  <table class="cls_top" width="100%" cellpadding="0" cellspacing="0">
+    <tr>
+      <td class="cls_hdr" width="220">CoreBank Teller Console</td>
+      <td class="cls_hdr">&nbsp;</td>
+      <td class="cls_hdr" align="right">
+        Signed in as <b>{{ user }}</b> |
+        <a href="{{ url_for('logout') }}">Sign out</a>
+      </td>
+    </tr>
+  </table>
+  <table class="cls_shell" width="100%" cellpadding="0" cellspacing="0">
+    <tr>
+      <td class="cls_nav" width="180" valign="top">
+        <div class="cls_navitem">Member Search</div>
+        <div class="cls_navitem">Transactions</div>
+        <div class="cls_navitem">Sub-Accounts</div>
+        <div class="cls_navitem">Reports</div>
+      </td>
+      <td valign="top">
+        <iframe id="mainFrame" name="mainFrame"
+                src="{{ content_url }}"
+                width="100%" height="640" frameborder="0"></iframe>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

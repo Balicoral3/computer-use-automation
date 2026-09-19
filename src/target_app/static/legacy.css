@@ -1,0 +1,19 @@
+body { font-family: Verdana, Arial, sans-serif; font-size: 12px; background:#d9d9d9; margin:0; }
+.cls_top { background:#003366; color:#fff; }
+.cls_hdr { padding:6px 10px; font-weight:bold; font-size:12px; }
+.cls_shell { background:#f4f4f4; }
+.cls_nav { background:#e6e6e6; border-right:1px solid #999; height:640px; padding:8px 4px; }
+.cls_navitem { padding:6px 8px; border-bottom:1px solid #ccc; color:#003366; cursor:pointer; }
+.cls_navitem:hover { background:#d0d0d0; }
+.cls_login { margin:80px auto; background:#efefef; border:1px solid #666; }
+.cls_login_hdr { background:#003366; color:#fff; font-weight:bold; text-align:center; padding:8px; }
+.cls_lbl { background:#e0e0e0; font-weight:bold; }
+.cls_err { color:#990000; font-weight:bold; padding:4px; }
+.cls_errbox { margin:20px; border:1px solid #990000; background:#fff0f0; }
+.cls_err_hdr { background:#990000; color:#fff; font-weight:bold; }
+.cls_ok { color:#006600; font-weight:bold; }
+.cls_warn { color:#996600; font-weight:bold; }
+.cls_grid { background:#fff; border-collapse:collapse; }
+.cls_grid th { background:#003366; color:#fff; }
+h3 { color:#003366; }
+a { color:#003366; }

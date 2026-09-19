@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Confirm Sub-Account</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='legacy.css') }}">
+</head>
+<body>
+  <h3>Confirmation</h3>
+  <table class="cls_grid" cellpadding="4" cellspacing="0" border="1">
+    <tr><td class="cls_lbl">Member</td><td id="confirmMember">{{ member.member_id }} &mdash; {{ member.full_name }}</td></tr>
+    <tr><td class="cls_lbl">Sub-Account Type</td><td id="confirmType">{{ sub_type }}</td></tr>
+    <tr><td class="cls_lbl">Initial Deposit</td><td id="confirmDeposit">${{ "%.2f"|format(initial|float) }}</td></tr>
+    <tr><td class="cls_lbl">Nickname</td><td>{{ nickname or "(none)" }}</td></tr>
+  </table>
+  <p class="cls_ok" id="confirmMsg">Sub-account is ready to be opened. This is the confirmation screen.</p>
+</body>
+</html>

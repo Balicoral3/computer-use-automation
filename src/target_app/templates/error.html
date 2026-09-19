@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Error</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='legacy.css') }}">
+  {% if code == "DIALOG" %}
+  <script>
+    window.onload = function () {
+      confirm("Session notice: an unexpected dialog has appeared.");
+    };
+  </script>
+  {% endif %}
+</head>
+<body>
+  <table class="cls_errbox" cellpadding="6" cellspacing="0" id="errorBox">
+    <tr><td class="cls_err_hdr" id="errorCode">Error: {{ code }}</td></tr>
+    <tr><td class="cls_err" id="errorMessage">{{ message }}</td></tr>
+  </table>
+</body>
+</html>

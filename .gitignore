@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+.env
+.venv/
+venv/
+evidence/*
+!evidence/.gitkeep
+artifacts/*.json
+!artifacts/.gitkeep
+playwright-report/
+test-results/
+.vscode/
+.idea/
+*.log

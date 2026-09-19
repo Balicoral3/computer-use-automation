@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Member Search</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='legacy.css') }}">
+</head>
+<body>
+  <h3>Member Search</h3>
+  <form method="post" action="{{ url_for('search') }}">
+    <table cellpadding="4" cellspacing="0">
+      <tr>
+        <td>Member ID</td>
+        <td><input type="text" name="q" value="{{ query }}" size="20"></td>
+        <td><input type="submit" value="Search"></td>
+      </tr>
+    </table>
+  </form>
+
+  {% if results is not none %}
+    {% if results %}
+      <table class="cls_grid" cellpadding="4" cellspacing="0" border="1">
+        <tr>
+          <th>Member ID</th><th>Name</th><th>Status</th><th>&nbsp;</th>
+        </tr>
+        {% for m in results %}
+        <tr>
+          <td>{{ m.member_id }}</td>
+          <td>{{ m.full_name }}</td>
+          <td>{{ m.status }}</td>
+          <td><a href="{{ url_for('member_detail', member_id=m.member_id) }}">Open</a></td>
+        </tr>
+        {% endfor %}
+      </table>
+    {% else %}
+      <p class="cls_warn">No members matched "{{ query }}".</p>
+    {% endif %}
+  {% endif %}
+</body>
+</html>

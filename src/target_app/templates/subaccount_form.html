@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>New Sub-Account</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='legacy.css') }}">
+</head>
+<body>
+  <h3>Open New Sub-Account &mdash; Member {{ member.member_id }}</h3>
+
+  {% if errors %}
+  <table class="cls_errbox" cellpadding="4" cellspacing="0">
+    {% for e in errors %}
+    <tr><td class="cls_err">{{ e }}</td></tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+
+  <form method="post" action="{{ url_for('subaccount_new', member_id=member.member_id) }}">
+    <table cellpadding="4" cellspacing="0">
+      <tr>
+        <td>Sub-Account Type</td>
+        <td>
+          <select name="sub_type">
+            <option value="">-- select --</option>
+            <option value="Christmas Club" {% if sub_type == "Christmas Club" %}selected{% endif %}>Christmas Club</option>
+            <option value="Vacation Club" {% if sub_type == "Vacation Club" %}selected{% endif %}>Vacation Club</option>
+            <option value="Money Market" {% if sub_type == "Money Market" %}selected{% endif %}>Money Market</option>
+          </select>
+        </td>
+      </tr>
+      <tr>
+        <td>Initial Deposit (USD)</td>
+        <td><input type="text" name="initial_deposit" value="{{ initial }}" size="16"></td>
+      </tr>
+      <tr>
+        <td>Nickname (optional)</td>
+        <td><input type="text" name="nickname" value="{{ nickname }}" size="24"></td>
+      </tr>
+      <tr>
+        <td colspan="2" align="right">
+          <input type="submit" value="Continue to Confirmation">
+        </td>
+      </tr>
+    </table>
+  </form>
+</body>
+</html>

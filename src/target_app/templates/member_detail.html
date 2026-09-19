@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Member {{ member.member_id }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='legacy.css') }}">
+</head>
+<body>
+  <h3>Member Detail</h3>
+  <table class="cls_grid" cellpadding="4" cellspacing="0" border="1">
+    <tr><td class="cls_lbl">Member ID</td><td id="memberId">{{ member.member_id }}</td></tr>
+    <tr><td class="cls_lbl">Full Name</td><td id="memberName">{{ member.full_name }}</td></tr>
+    <tr><td class="cls_lbl">SSN (last 4)</td><td>{{ member.ssn_last4 }}</td></tr>
+    <tr><td class="cls_lbl">Status</td><td>{{ member.status }}</td></tr>
+    <tr><td class="cls_lbl">Savings Balance</td>
+        <td id="savingsBalance">${{ "%.2f"|format(member.savings_balance) }}</td></tr>
+    <tr><td class="cls_lbl">Checking Balance</td>
+        <td id="checkingBalance">${{ "%.2f"|format(member.checking_balance) }}</td></tr>
+  </table>
+
+  <p>
+    <a id="newSubaccount" href="{{ url_for('subaccount_new', member_id=member.member_id) }}">
+      Open a new sub-account
+    </a>
+  </p>
+
+  {% if member.subaccounts %}
+  <h4>Existing Sub-Accounts</h4>
+  <table class="cls_grid" cellpadding="4" cellspacing="0" border="1">
+    <tr><th>ID</th><th>Type</th><th>Balance</th></tr>
+    {% for sa in member.subaccounts %}
+    <tr><td>{{ sa.id }}</td><td>{{ sa.type }}</td><td>${{ sa.balance }}</td></tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+</body>
+</html>

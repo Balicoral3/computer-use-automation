@@ -1,0 +1,35 @@
+{
+  "schema_version": "1.0",
+  "id": "lookup_member_balance",
+  "name": "Lookup Member Balance",
+  "version": "1.0.0",
+  "description": "Sign in to the teller console, open a member record, and read the savings balance.",
+  "llm_model": "fixture-no-llm",
+  "target": {
+    "app_id": "mock-corebank",
+    "entry_url": "{{base_url}}/login",
+    "surface_type": "legacy_web",
+    "tenant_id": "default",
+    "app_version": "1.0",
+    "adapter": "playwright-web"
+  },
+  "parameters": [
+    { "name": "base_url", "type": "string", "required": true, "description": "Base URL of the teller console", "example": "http://127.0.0.1:5000" },
+    { "name": "username", "type": "string", "required": true, "description": "Operator username", "example": "teller1" },
+    { "name": "password", "type": "string", "required": true, "description": "Operator password", "redact": true },
+    { "name": "member_id", "type": "string", "required": true, "description": "Member ID to look up", "example": "12345" }
+  ],
+  "outputs": [
+    { "name": "savings_balance", "type": "string", "description": "Savings balance shown on the member detail screen", "from_step": "s5", "redact": true }
+  ],
+  "steps": [
+    { "id": "s1", "action": "fill", "description": "Enter username", "locator": { "strategy": "css", "value": "input[name=\"username\"]" }, "value": "{{username}}", "risk": "safe" },
+    { "id": "s2", "action": "fill", "description": "Enter password", "locator": { "strategy": "css", "value": "input[name=\"password\"]" }, "value": "{{password}}", "risk": "safe" },
+    { "id": "s3", "action": "click", "description": "Submit sign-in form", "locator": { "strategy": "role", "value": "button", "name": "Sign In", "fallbacks": [ { "strategy": "css", "value": "input[value=\"Sign In\"]" }, { "strategy": "text", "value": "Sign In" } ] }, "risk": "safe" },
+    { "id": "s4", "action": "navigate", "description": "Open member detail page", "value": "{{base_url}}/member/{{member_id}}", "risk": "safe" },
+    { "id": "s5", "action": "read", "description": "Read savings balance", "locator": { "strategy": "css", "value": "#savingsBalance" }, "risk": "safe" }
+  ],
+  "checkpoint": { "description": "Member detail page shows a savings balance", "locator": { "strategy": "css", "value": "#savingsBalance" }, "timeout_ms": 8000 },
+  "safety": { "allowed_domains": ["127.0.0.1", "localhost"], "allowed_actions": ["navigate", "click", "fill", "select", "press", "read", "wait_for", "assert_text", "screenshot"], "risky_requires_confirmation": true, "irreversible_blocked": true },
+  "metadata": { "fixture": true }
+}
