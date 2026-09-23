@@ -2,11 +2,31 @@
 
 No LLM in the loop. Reads a CapabilityArtifact, substitutes parameters,
 executes each step, verifies checkpoints, and returns a structured outcome.
+
+Error handling design:
+
+  Each step may declare a list of ErrorHandlers. They are evaluated in three
+  places, in this order:
+
+    1) BEFORE the step action: if the page already shows a matching error
+       surface, we short-circuit and return the appropriate outcome.
+    2) ON step failure: if the action raised, we check the declared handlers
+       before falling back to a generic failure.
+    3) AFTER the step action: the same check runs again, in case the action
+       itself produced the error state.
+
+  Detection is content-based (innerText, in the main frame AND all iframes)
+  and polling-based: when a handler declares `detect_text`, we wait up to
+  `poll_timeout_ms` for it to appear before declaring "not matched". This is
+  what makes iframe-based legacy UIs work: content arrives asynchronously
+  after the click and is not on screen instantly.
+
+  A separate global signature table catches generic error surfaces that were
+  not declared per-step, as a safety net.
 """
 
 from __future__ import annotations
 
-import json
 import time
 from typing import Any, Callable, Dict, Optional
 
@@ -31,14 +51,34 @@ from .errors import (
 )
 
 
-# A confirmation callback: given (step, message) returns True to proceed.
 ConfirmFn = Callable[[Step, str], bool]
+
+# Tunables
+CLICK_SETTLE_MS = 300            # pause after click before observing
+HANDLER_POLL_TIMEOUT_MS = 3000   # wait for detect_text to appear
+HANDLER_POLL_INTERVAL_S = 0.2
 
 
 def _default_confirm(step: Step, message: str) -> bool:
-    # Non-interactive default: refuse risky actions rather than silently doing them.
     print(f"[safety] Refusing without confirmation: {message}")
     return False
+
+
+def _all_frames_text(page: Page) -> str:
+    """Concatenate innerText across the main frame and every child iframe."""
+    chunks = []
+    try:
+        frames = list(page.frames)
+    except Exception:
+        frames = []
+    for fr in frames:
+        try:
+            txt = fr.evaluate("() => document.body ? document.body.innerText : ''")
+            if txt:
+                chunks.append(txt)
+        except Exception:
+            continue
+    return "\n".join(chunks)
 
 
 class ReplayEngine:
@@ -60,10 +100,9 @@ class ReplayEngine:
             "replay.start",
             artifact_id=artifact.id,
             version=artifact.version,
-            params={k: v for k, v in params.items()},
+            params=dict(params),
         )
 
-        # Validate params
         missing = [
             p.name for p in artifact.parameters
             if p.required and p.name not in params
@@ -78,13 +117,15 @@ class ReplayEngine:
         outputs: Dict[str, Any] = {}
 
         try:
-            entry = artifact.render_value(artifact.target.entry_url, params) or artifact.target.entry_url
+            entry = (
+                artifact.render_value(artifact.target.entry_url, params)
+                or artifact.target.entry_url
+            )
             self.page.goto(entry, wait_until="domcontentloaded")
             self.allowlist.enforce_url(self.page.url)
         except SafetyViolation as exc:
             return ReplayOutcome(
-                kind=OutcomeKind.FAILURE, code="SAFETY_BLOCK",
-                message=str(exc),
+                kind=OutcomeKind.FAILURE, code="SAFETY_BLOCK", message=str(exc),
             )
 
         for step in artifact.steps:
@@ -93,7 +134,6 @@ class ReplayEngine:
                 self.logger.write_result(outcome.to_dict())
                 return outcome
 
-        # Final checkpoint
         passed, observed = verify_checkpoint(self.page, artifact.checkpoint)
         if not passed:
             self._capture_failure_evidence("final_checkpoint")
@@ -128,6 +168,7 @@ class ReplayEngine:
         params: Dict[str, Any],
         outputs: Dict[str, Any],
     ) -> Optional[ReplayOutcome]:
+
         # Safety gate
         try:
             decision = self.allowlist.enforce_action(step.action, step.risk)
@@ -148,22 +189,27 @@ class ReplayEngine:
                     step_id=step.id,
                 )
 
-        # Resolve value with params
         value = artifact.render_value(step.value, params)
 
-        self.logger.log("replay.step", step_id=step.id, action=step.action.value,
-                        description=step.description, risk=step.risk.value)
+        self.logger.log(
+            "replay.step", step_id=step.id, action=step.action.value,
+            description=step.description, risk=step.risk.value,
+        )
 
-        # Pre-step business / recoverable detection: check for known error surface
-        pre_outcome = self._detect_pre_step_outcome(step, outputs)
-        if pre_outcome is not None:
-            return pre_outcome
+        # (1) Check declared handlers BEFORE the action.
+        declared = self._check_declared_handlers(step, outputs, tag="pre", poll=False)
+        if declared is not None:
+            return declared
 
+        # (2) Perform the action.
         try:
             self._perform(step, value)
         except StepFailure as exc:
             return self._handle_step_failure(step, exc, outputs)
         except Exception as exc:
+            declared = self._check_declared_handlers(step, outputs, tag="on_error", poll=False)
+            if declared is not None:
+                return declared
             self._capture_failure_evidence(step.id)
             return ReplayOutcome(
                 kind=OutcomeKind.FAILURE, code="STEP_ACTION_ERROR",
@@ -172,21 +218,34 @@ class ReplayEngine:
                 evidence_path=str(self.logger.path),
             )
 
-        # Post-step: read into outputs if action is READ
+        # Small settle after click so iframes can re-render before we poll.
+        if step.action == ActionType.CLICK:
+            time.sleep(CLICK_SETTLE_MS / 1000.0)
+
+        # (3) READ output extraction.
         if step.action == ActionType.READ and step.locator is not None:
             try:
                 loc = loc_mod.resolve(self.page, step.locator, step.timeout_ms)
                 text = loc.first.inner_text(timeout=step.timeout_ms)
                 name = step.description.split("->")[-1].strip() if "->" in step.description else step.id
-                # Prefer output declared in artifact with from_step == step.id
-                declared = next((o for o in artifact.outputs if o.from_step == step.id), None)
-                key = declared.name if declared else name
+                declared_out = next(
+                    (o for o in artifact.outputs if o.from_step == step.id), None
+                )
+                key = declared_out.name if declared_out else name
                 outputs[key] = text
                 self.logger.log("replay.read", step_id=step.id, output_name=key)
             except Exception as exc:
                 self.logger.log("replay.read_error", step_id=step.id, error=str(exc))
 
-        # Post-step: explicit checkpoint
+        # (4) Check declared handlers AFTER the action.
+        _poll_post = step.action in (ActionType.CLICK, ActionType.NAVIGATE)
+        declared = self._check_declared_handlers(
+            step, outputs, tag="post", poll=_poll_post
+        )
+        if declared is not None:
+            return declared
+
+        # (5) Post-step explicit checkpoint.
         if step.post_checkpoint is not None:
             passed, observed = verify_checkpoint(self.page, step.post_checkpoint)
             if not passed:
@@ -202,13 +261,128 @@ class ReplayEngine:
                     evidence_path=str(self.logger.path),
                 )
 
-        # Post-step: detect known business outcomes
-        post_outcome = self._detect_known_outcome_after(step, outputs)
+        # (6) Global signature fallback.
+        post_outcome = self._detect_global_signature(step, outputs)
         if post_outcome is not None:
             return post_outcome
 
         return None
 
+    # ------------------------------------------------------------------
+    def _check_declared_handlers(
+        self,
+        step: Step,
+        outputs: Dict[str, Any],
+        tag: str,
+        poll: bool = False,
+    ) -> Optional[ReplayOutcome]:
+        """Evaluate this step's declared error_handlers. Return an outcome or None.
+
+        `poll=True` is used after a state-changing action (click, navigate):
+        we wait up to HANDLER_POLL_TIMEOUT_MS for a detect_text to appear,
+        because the page content may still be rendering inside an iframe.
+
+        `poll=False` is used before an action or on non-state-changing steps:
+        we do a single check. This avoids wasting 5s per handler when we are
+        simply verifying "is the page already in an error state".
+        """
+        if not step.error_handlers:
+            return None
+
+        for handler in step.error_handlers:
+            matched = False
+
+            # -- detect_text
+            if handler.detect_text:
+                needle = handler.detect_text.lower()
+                if poll:
+                    deadline = time.time() + HANDLER_POLL_TIMEOUT_MS / 1000.0
+                    while True:
+                        body = _all_frames_text(self.page)
+                        if needle in body.lower():
+                            matched = True
+                            break
+                        if time.time() >= deadline:
+                            break
+                        time.sleep(HANDLER_POLL_INTERVAL_S)
+                else:
+                    body = _all_frames_text(self.page)
+                    if needle in body.lower():
+                        matched = True
+
+            # -- detect_locator: single check (visibility)
+            if not matched and handler.detect_locator is not None:
+                try:
+                    loc = loc_mod.resolve(
+                        self.page, handler.detect_locator, timeout_ms=1500
+                    )
+                    if loc.first.is_visible(timeout=500):
+                        matched = True
+                except Exception:
+                    pass
+
+            if not matched:
+                continue
+
+            self.logger.log(
+                "replay.declared_handler_matched",
+                step_id=step.id, tag=tag,
+                code=handler.code, kind=handler.kind.value,
+            )
+            self._capture_failure_evidence(f"{step.id}_{handler.code}")
+
+            if handler.kind == ErrorKind.BUSINESS:
+                return ReplayOutcome(
+                    kind=OutcomeKind.BUSINESS,
+                    code=handler.code,
+                    message=handler.message or f"Business outcome {handler.code}",
+                    outputs=outputs,
+                    step_id=step.id,
+                    evidence_path=str(self.logger.path),
+                )
+            if handler.kind == ErrorKind.HARD:
+                return ReplayOutcome(
+                    kind=OutcomeKind.FAILURE,
+                    code=handler.code,
+                    message=handler.message or f"Hard failure {handler.code}",
+                    outputs=outputs,
+                    step_id=step.id,
+                    evidence_path=str(self.logger.path),
+                )
+            if handler.kind == ErrorKind.RECOVERABLE:
+                if handler.recover_action == "skip":
+                    self.logger.log("replay.recover_skip", step_id=step.id)
+                    return None
+                return ReplayOutcome(
+                    kind=OutcomeKind.BUSINESS,
+                    code=handler.code,
+                    message=handler.message or f"Recoverable condition {handler.code}",
+                    outputs=outputs, step_id=step.id,
+                    evidence_path=str(self.logger.path),
+                )
+
+        return None
+
+    # ------------------------------------------------------------------
+    def _detect_global_signature(
+        self, step: Step, outputs: Dict[str, Any]
+    ) -> Optional[ReplayOutcome]:
+        body = _all_frames_text(self.page)
+        detected = detect_known_outcome(body)
+        if detected is None:
+            return None
+        code, kind = detected
+        if kind == ErrorKind.BUSINESS:
+            self._capture_failure_evidence(f"{step.id}_global_{code}")
+            return ReplayOutcome(
+                kind=OutcomeKind.BUSINESS, code=code,
+                message=f"Business outcome {code} at step {step.id}",
+                outputs=outputs, step_id=step.id,
+                evidence_path=str(self.logger.path),
+            )
+        return None
+
+    # ------------------------------------------------------------------
     def _perform(self, step: Step, value: Optional[str]) -> None:
         page = self.page
         if step.action == ActionType.NAVIGATE:
@@ -220,7 +394,8 @@ class ReplayEngine:
             return
 
         if step.locator is None:
-            raise StepFailure("MISSING_LOCATOR", f"{step.action.value} requires locator",
+            raise StepFailure("MISSING_LOCATOR",
+                              f"{step.action.value} requires locator",
                               step_id=step.id)
 
         loc = loc_mod.resolve(page, step.locator, step.timeout_ms)
@@ -249,66 +424,16 @@ class ReplayEngine:
                 )
         elif step.action == ActionType.SCREENSHOT:
             self.page.screenshot(path=str(self.logger.screenshot_path(step.id)))
-        # READ handled by caller
         return
 
-    # -- detection helpers -------------------------------------------------
-    def _detect_pre_step_outcome(
-        self, step: Step, outputs: Dict[str, Any]
-    ) -> Optional[ReplayOutcome]:
-        # Look for error surfaces already present before this step.
-        try:
-            body = self.page.evaluate("() => document.body ? document.body.innerText : ''")
-        except Exception:
-            body = ""
-        detected = detect_known_outcome(body)
-        if detected is None:
-            return None
-        code, kind = detected
-        if kind == ErrorKind.RECOVERABLE:
-            # try to recover: if session expired, re-login is the caller's concern.
-            self.logger.log("replay.recoverable", step_id=step.id, code=code)
-            # We don't re-login here; instead surface as business-level recoverable
-            return ReplayOutcome(
-                kind=OutcomeKind.BUSINESS, code=code,
-                message="Recoverable condition encountered (session).",
-                step_id=step.id, evidence_path=str(self.logger.path),
-            )
-        if kind == ErrorKind.BUSINESS:
-            self._capture_failure_evidence(f"{step.id}_business")
-            return ReplayOutcome(
-                kind=OutcomeKind.BUSINESS, code=code,
-                message=f"Business outcome {code} detected before step {step.id}",
-                outputs=outputs, step_id=step.id,
-                evidence_path=str(self.logger.path),
-            )
-        return None
-
-    def _detect_known_outcome_after(
-        self, step: Step, outputs: Dict[str, Any]
-    ) -> Optional[ReplayOutcome]:
-        try:
-            body = self.page.evaluate("() => document.body ? document.body.innerText : ''")
-        except Exception:
-            body = ""
-        detected = detect_known_outcome(body)
-        if detected is None:
-            return None
-        code, kind = detected
-        if kind == ErrorKind.BUSINESS:
-            self._capture_failure_evidence(f"{step.id}_business")
-            return ReplayOutcome(
-                kind=OutcomeKind.BUSINESS, code=code,
-                message=f"Business outcome {code} at step {step.id}",
-                outputs=outputs, step_id=step.id,
-                evidence_path=str(self.logger.path),
-            )
-        return None
-
+    # ------------------------------------------------------------------
     def _handle_step_failure(
         self, step: Step, exc: StepFailure, outputs: Dict[str, Any]
     ) -> ReplayOutcome:
-        # Check declared error handlers for this step
+        declared = self._check_declared_handlers(step, outputs, tag="on_stepfailure", poll=False)
+        if declared is not None:
+            return declared
+
         for handler in step.error_handlers:
             if handler.code == exc.code or handler.kind == ErrorKind.BUSINESS:
                 if handler.kind == ErrorKind.BUSINESS:
@@ -325,6 +450,7 @@ class ReplayEngine:
                             return None  # type: ignore[return-value]
                         except Exception:
                             continue
+
         self._capture_failure_evidence(step.id)
         return ReplayOutcome(
             kind=OutcomeKind.FAILURE, code=exc.code, message=exc.message,
@@ -333,9 +459,12 @@ class ReplayEngine:
             evidence_path=str(self.logger.path),
         )
 
+    # ------------------------------------------------------------------
     def _capture_failure_evidence(self, tag: str) -> None:
         try:
-            self.page.screenshot(path=str(self.logger.screenshot_path(f"failure_{tag}")))
+            self.page.screenshot(
+                path=str(self.logger.screenshot_path(f"failure_{tag}"))
+            )
         except Exception:
             pass
         try:

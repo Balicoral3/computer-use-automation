@@ -28,6 +28,8 @@ def _build(scope: Any, spec: LocatorSpec) -> Locator:
         return scope.get_by_text(v, exact=spec.exact)
     if s == LocatorStrategy.PLACEHOLDER:
         return scope.get_by_placeholder(v, exact=spec.exact)
+    if s == LocatorStrategy.NAME:
+        return scope.locator(f'[name="{v}"]')
     if s == LocatorStrategy.CSS:
         return scope.locator(v)
     if s == LocatorStrategy.XPATH:

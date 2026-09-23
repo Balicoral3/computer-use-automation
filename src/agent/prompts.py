@@ -1,4 +1,14 @@
-"""System prompt and tool schema for the discovery agent."""
+"""System prompt and tool schema for the discovery agent.
+
+Design notes:
+  - Tool schemas use type arrays that include "null" for every optional
+    field. Some providers (notably Groq running openai/gpt-oss-*) validate
+    tool-call arguments strictly and reject `field: null` if the schema
+    declares only `type: "string"`. Allowing null keeps us compatible with
+    both the permissive providers (OpenAI, Anthropic) and the strict ones.
+  - Locator strategies are ordered by robustness: role/label/text first
+    (semantic, stable), then CSS/XPath, then coordinates as a last resort.
+"""
 
 from __future__ import annotations
 
@@ -22,10 +32,50 @@ legitimate outcome (not a crash), call `finish` with a `business_outcome` field 
 set to a short code like `NOT_FOUND`.
   5. Do not invent data. If a value is not visible on screen, do not return it.
   6. Keep actions minimal. One click, one fill, one navigate per step.
+  7. Omit optional fields entirely when they are not needed. Do NOT send \
+`field: null` or empty strings for fields you are not using.
+  8. Only set `frame_selector` when the observation explicitly marks the \
+element as inside an <iframe>. Elements on the top-level page must NOT \
+have a frame_selector.
 
 When you receive login credentials in the context, use them when a login form is \
 present.
 """
+
+
+# Helper: JSON Schema for "optional string that may be omitted".
+# We use a type array so strict validators accept either a string or null.
+_OPTIONAL_STRING = {"type": ["string", "null"]}
+
+
+def _locator_props() -> Dict[str, Any]:
+    return {
+        "locator_strategy": {
+            "type": "string",
+            "enum": [
+                "role", "label", "text", "placeholder", "name",
+                "css", "xpath", "coordinates"
+            ],
+            "description": "How to find the element.",
+        },
+        "locator_value": {
+            "type": "string",
+            "description": "The value for the chosen strategy (role name, label text, CSS selector, etc.).",
+        },
+        "locator_name": {
+            **_OPTIONAL_STRING,
+            "description": "Accessible name (only used when strategy=role).",
+        },
+        "frame_selector": {
+            **_OPTIONAL_STRING,
+            "description": (
+                "CSS selector of the iframe containing the element. "
+                "OMIT this field unless the observation explicitly shows the "
+                "element is inside an <iframe>. Do NOT send it for elements "
+                "on the top-level page."
+            ),
+        },
+    }
 
 
 TOOLS: List[Dict[str, Any]] = [
@@ -37,9 +87,11 @@ TOOLS: List[Dict[str, Any]] = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "url": {"type": "string", "description": "Absolute URL to load."}
+                    "url": {"type": "string", "description": "Absolute URL to load."},
+                    "description": {"type": "string"},
                 },
-                "required": ["url"],
+                "required": ["url", "description"],
+                "additionalProperties": False,
             },
         },
     },
@@ -51,22 +103,11 @@ TOOLS: List[Dict[str, Any]] = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "locator_strategy": {
-                        "type": "string",
-                        "enum": ["role", "label", "text", "placeholder", "css", "xpath", "coordinates"],
-                    },
-                    "locator_value": {"type": "string"},
-                    "locator_name": {
-                        "type": "string",
-                        "description": "Accessible name (only for strategy=role).",
-                    },
-                    "frame_selector": {
-                        "type": "string",
-                        "description": "CSS selector of the iframe containing the element, if any.",
-                    },
+                    **_locator_props(),
                     "description": {"type": "string"},
                 },
                 "required": ["locator_strategy", "locator_value", "description"],
+                "additionalProperties": False,
             },
         },
     },
@@ -78,14 +119,12 @@ TOOLS: List[Dict[str, Any]] = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "locator_strategy": {"type": "string"},
-                    "locator_value": {"type": "string"},
-                    "locator_name": {"type": "string"},
-                    "frame_selector": {"type": "string"},
+                    **_locator_props(),
                     "text": {"type": "string"},
                     "description": {"type": "string"},
                 },
                 "required": ["locator_strategy", "locator_value", "text", "description"],
+                "additionalProperties": False,
             },
         },
     },
@@ -97,14 +136,14 @@ TOOLS: List[Dict[str, Any]] = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "locator_strategy": {"type": "string"},
-                    "locator_value": {"type": "string"},
-                    "locator_name": {"type": "string"},
-                    "frame_selector": {"type": "string"},
+                    **_locator_props(),
                     "option_label": {"type": "string"},
                     "description": {"type": "string"},
                 },
-                "required": ["locator_strategy", "locator_value", "option_label", "description"],
+                "required": [
+                    "locator_strategy", "locator_value", "option_label", "description"
+                ],
+                "additionalProperties": False,
             },
         },
     },
@@ -116,14 +155,14 @@ TOOLS: List[Dict[str, Any]] = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "locator_strategy": {"type": "string"},
-                    "locator_value": {"type": "string"},
-                    "locator_name": {"type": "string"},
-                    "frame_selector": {"type": "string"},
+                    **_locator_props(),
                     "output_name": {"type": "string"},
                     "description": {"type": "string"},
                 },
-                "required": ["locator_strategy", "locator_value", "output_name", "description"],
+                "required": [
+                    "locator_strategy", "locator_value", "output_name", "description"
+                ],
+                "additionalProperties": False,
             },
         },
     },
@@ -135,14 +174,15 @@ TOOLS: List[Dict[str, Any]] = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "locator_strategy": {"type": "string"},
-                    "locator_value": {"type": "string"},
-                    "locator_name": {"type": "string"},
-                    "frame_selector": {"type": "string"},
-                    "timeout_ms": {"type": "integer", "default": 8000},
+                    **_locator_props(),
+                    "timeout_ms": {
+                        "type": ["integer", "null"],
+                        "description": "Maximum time to wait in milliseconds.",
+                    },
                     "description": {"type": "string"},
                 },
                 "required": ["locator_strategy", "locator_value", "description"],
+                "additionalProperties": False,
             },
         },
     },
@@ -159,15 +199,17 @@ TOOLS: List[Dict[str, Any]] = [
                         "description": "Human-readable description of the final state you reached.",
                     },
                     "outputs": {
-                        "type": "object",
+                        "type": ["object", "null"],
                         "description": "Map of output_name -> value extracted from the page.",
+                        "additionalProperties": True,
                     },
                     "business_outcome": {
-                        "type": "string",
+                        **_OPTIONAL_STRING,
                         "description": "Optional short code like NOT_FOUND, PERMISSION_DENIED.",
                     },
                 },
                 "required": ["checkpoint_description"],
+                "additionalProperties": False,
             },
         },
     },

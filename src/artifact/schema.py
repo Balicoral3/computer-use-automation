@@ -33,6 +33,7 @@ class LocatorStrategy(str, Enum):
     LABEL = "label"
     TEXT = "text"
     PLACEHOLDER = "placeholder"
+    NAME = "name"           # HTML name attribute, common in legacy forms
     CSS = "css"
     XPATH = "xpath"
     COORDINATES = "coordinates"
