@@ -5,6 +5,8 @@ __pycache__/
 venv/
 evidence/*
 !evidence/.gitkeep
+!evidence/demo/
+!evidence/demo/**
 artifacts/*.json
 !artifacts/.gitkeep
 playwright-report/

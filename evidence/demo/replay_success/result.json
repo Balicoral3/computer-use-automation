@@ -1,0 +1,12 @@
+{
+  "kind": "success",
+  "code": "OK",
+  "message": "Replay completed and checkpoint verified.",
+  "outputs": {
+    "savings_balance": "[REDACTED_AMOUNT]45.67"
+  },
+  "step_id": null,
+  "expected": null,
+  "observed": null,
+  "evidence_path": "evidence\\replay-20260923-172854-877c41"
+}

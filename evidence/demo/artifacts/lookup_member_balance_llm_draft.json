@@ -1,0 +1,331 @@
+{
+  "schema_version": "1.0",
+  "id": "lookup_member_balance",
+  "name": "Lookup Member Balance",
+  "version": "1.0.0",
+  "description": "Sign in to the teller console, search for a member by ID, open their record, and read their savings balance.",
+  "created_at": "2026-09-23T09:59:34.047198Z",
+  "llm_model": "qwen/qwen3.8-27b",
+  "target": {
+    "app_id": "mock-corebank",
+    "entry_url": "{{base_url}}",
+    "surface_type": "legacy_web",
+    "tenant_id": "default",
+    "app_version": null,
+    "adapter": "playwright-web"
+  },
+  "parameters": [
+    {
+      "name": "base_url",
+      "type": "string",
+      "required": true,
+      "description": "Base URL of the teller console",
+      "example": "http://127.0.0.1:5000",
+      "pattern": null,
+      "redact": false
+    },
+    {
+      "name": "username",
+      "type": "string",
+      "required": true,
+      "description": "Operator username",
+      "example": "teller1",
+      "pattern": null,
+      "redact": false
+    },
+    {
+      "name": "password",
+      "type": "string",
+      "required": true,
+      "description": "Operator password",
+      "example": null,
+      "pattern": null,
+      "redact": true
+    },
+    {
+      "name": "member_id",
+      "type": "string",
+      "required": true,
+      "description": "Member ID to look up",
+      "example": "12345",
+      "pattern": null,
+      "redact": false
+    }
+  ],
+  "outputs": [
+    {
+      "name": "savings_balance",
+      "type": "string",
+      "description": "Savings balance shown on the member detail screen",
+      "from_step": "s7",
+      "locator": null,
+      "regex": null,
+      "redact": true
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "fill",
+      "description": "Enter username",
+      "locator": {
+        "strategy": "name",
+        "value": "username",
+        "name": null,
+        "exact": true,
+        "frame_path": null,
+        "fallbacks": []
+      },
+      "value": "{{username}}",
+      "risk": "safe",
+      "timeout_ms": 10000,
+      "error_handlers": [],
+      "post_checkpoint": null
+    },
+    {
+      "id": "s2",
+      "action": "fill",
+      "description": "Enter password",
+      "locator": {
+        "strategy": "name",
+        "value": "password",
+        "name": null,
+        "exact": true,
+        "frame_path": null,
+        "fallbacks": []
+      },
+      "value": "{{password}}",
+      "risk": "safe",
+      "timeout_ms": 10000,
+      "error_handlers": [],
+      "post_checkpoint": null
+    },
+    {
+      "id": "s3",
+      "action": "click",
+      "description": "Click Sign In",
+      "locator": {
+        "strategy": "role",
+        "value": "button",
+        "name": "Sign In",
+        "exact": true,
+        "frame_path": null,
+        "fallbacks": [
+          {
+            "strategy": "css",
+            "value": "input[value=\"Sign In\"]",
+            "name": null,
+            "exact": true,
+            "frame_path": null,
+            "fallbacks": []
+          }
+        ]
+      },
+      "value": null,
+      "risk": "safe",
+      "timeout_ms": 10000,
+      "error_handlers": [],
+      "post_checkpoint": null
+    },
+    {
+      "id": "s4",
+      "action": "fill",
+      "description": "Enter member ID in search box",
+      "locator": {
+        "strategy": "name",
+        "value": "q",
+        "name": null,
+        "exact": true,
+        "frame_path": [
+          "#mainFrame"
+        ],
+        "fallbacks": []
+      },
+      "value": "{{member_id}}",
+      "risk": "safe",
+      "timeout_ms": 10000,
+      "error_handlers": [],
+      "post_checkpoint": null
+    },
+    {
+      "id": "s5",
+      "action": "click",
+      "description": "Click Search",
+      "locator": {
+        "strategy": "role",
+        "value": "button",
+        "name": "Search",
+        "exact": true,
+        "frame_path": [
+          "#mainFrame"
+        ],
+        "fallbacks": [
+          {
+            "strategy": "css",
+            "value": "input[value=\"Search\"]",
+            "name": null,
+            "exact": true,
+            "frame_path": [
+              "#mainFrame"
+            ],
+            "fallbacks": []
+          }
+        ]
+      },
+      "value": null,
+      "risk": "safe",
+      "timeout_ms": 10000,
+      "error_handlers": [
+        {
+          "kind": "business",
+          "code": "NOT_FOUND",
+          "detect_locator": null,
+          "detect_text": "No members matched",
+          "recover_action": null,
+          "max_retries": 1,
+          "message": "Member not found"
+        }
+      ],
+      "post_checkpoint": null
+    },
+    {
+      "id": "s6",
+      "action": "click",
+      "description": "Click Open link in search results",
+      "locator": {
+        "strategy": "role",
+        "value": "link",
+        "name": "Open",
+        "exact": true,
+        "frame_path": [
+          "#mainFrame"
+        ],
+        "fallbacks": [
+          {
+            "strategy": "text",
+            "value": "Open",
+            "name": null,
+            "exact": true,
+            "frame_path": [
+              "#mainFrame"
+            ],
+            "fallbacks": []
+          }
+        ]
+      },
+      "value": null,
+      "risk": "safe",
+      "timeout_ms": 10000,
+      "error_handlers": [
+        {
+          "kind": "business",
+          "code": "NOT_FOUND",
+          "detect_locator": null,
+          "detect_text": "No members matched",
+          "recover_action": null,
+          "max_retries": 1,
+          "message": "Member not found (no results)"
+        },
+        {
+          "kind": "business",
+          "code": "PERMISSION_DENIED",
+          "detect_locator": null,
+          "detect_text": "You do not have permission",
+          "recover_action": null,
+          "max_retries": 1,
+          "message": "Permission denied opening member record"
+        },
+        {
+          "kind": "business",
+          "code": "PERMISSION_DENIED",
+          "detect_locator": null,
+          "detect_text": "Account is restricted",
+          "recover_action": null,
+          "max_retries": 1,
+          "message": "Account is restricted"
+        }
+      ],
+      "post_checkpoint": null
+    },
+    {
+      "id": "s7",
+      "action": "read",
+      "description": "Read savings balance",
+      "locator": {
+        "strategy": "css",
+        "value": "#savingsBalance",
+        "name": null,
+        "exact": true,
+        "frame_path": [
+          "#mainFrame"
+        ],
+        "fallbacks": []
+      },
+      "value": null,
+      "risk": "safe",
+      "timeout_ms": 10000,
+      "error_handlers": [
+        {
+          "kind": "business",
+          "code": "PERMISSION_DENIED",
+          "detect_locator": null,
+          "detect_text": "You do not have permission",
+          "recover_action": null,
+          "max_retries": 1,
+          "message": "Permission denied reading member detail"
+        },
+        {
+          "kind": "business",
+          "code": "PERMISSION_DENIED",
+          "detect_locator": null,
+          "detect_text": "Account is restricted",
+          "recover_action": null,
+          "max_retries": 1,
+          "message": "Account is restricted"
+        }
+      ],
+      "post_checkpoint": null
+    }
+  ],
+  "checkpoint": {
+    "description": "Member detail page is visible with a savings balance",
+    "locator": {
+      "strategy": "css",
+      "value": "#savingsBalance",
+      "name": null,
+      "exact": true,
+      "frame_path": [
+        "#mainFrame"
+      ],
+      "fallbacks": []
+    },
+    "expected_text": null,
+    "timeout_ms": 10000
+  },
+  "safety": {
+    "allowed_domains": [
+      "127.0.0.1",
+      "localhost"
+    ],
+    "allowed_actions": [
+      "navigate",
+      "click",
+      "fill",
+      "select",
+      "press",
+      "read",
+      "wait_for",
+      "assert_text",
+      "screenshot"
+    ],
+    "risky_requires_confirmation": true,
+    "irreversible_blocked": true
+  },
+  "metadata": {
+    "goal": "Log in with username teller1 and password password123, then look up member 12345 and read their savings balance",
+    "business_outcome": null,
+    "discovery_steps": 8,
+    "polished_by": "human-review",
+    "notes": "Original LLM-generated artifact had hardcoded credential and member values, duplicate/broken steps, and no read step. Reviewed and cleaned up before approval."
+  }
+}

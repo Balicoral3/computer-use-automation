@@ -1,0 +1,10 @@
+{
+  "finish_reason": "finish_tool",
+  "steps_taken": 8,
+  "business_outcome": null,
+  "outputs": {
+    "savings_balance": "[REDACTED_AMOUNT]45.67"
+  },
+  "artifact_saved": true,
+  "artifact_path": "artifacts\\lookup_member_balance.json"
+}

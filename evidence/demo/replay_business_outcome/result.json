@@ -1,0 +1,10 @@
+{
+  "kind": "business",
+  "code": "PERMISSION_DENIED",
+  "message": "Permission denied opening member record",
+  "outputs": {},
+  "step_id": "s6",
+  "expected": null,
+  "observed": null,
+  "evidence_path": "evidence\\replay-20260923-172929-1fa42f"
+}

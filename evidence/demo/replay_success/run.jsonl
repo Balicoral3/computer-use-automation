@@ -1,0 +1,10 @@
+{"ts": "2026-09-23T10:28:57.500880+00:00", "t_rel": 2.529, "run_id": "replay-20260923-172854-877c41", "event": "replay.start", "artifact_id": "lookup_member_balance", "version": "1.0.0", "params": {"base_url": "http://127.0.0.1:5000", "username": "teller1", "password": "[REDACTED_SECRET]", "member_id": "12345"}}
+{"ts": "2026-09-23T10:28:57.592759+00:00", "t_rel": 2.621, "run_id": "replay-20260923-172854-877c41", "event": "replay.step", "step_id": "s1", "action": "fill", "description": "Enter username", "risk": "safe"}
+{"ts": "2026-09-23T10:28:57.786740+00:00", "t_rel": 2.815, "run_id": "replay-20260923-172854-877c41", "event": "replay.step", "step_id": "s2", "action": "fill", "description": "Enter password", "risk": "safe"}
+{"ts": "2026-09-23T10:28:57.831460+00:00", "t_rel": 2.86, "run_id": "replay-20260923-172854-877c41", "event": "replay.step", "step_id": "s3", "action": "click", "description": "Click Sign In", "risk": "safe"}
+{"ts": "2026-09-23T10:28:58.837456+00:00", "t_rel": 3.866, "run_id": "replay-20260923-172854-877c41", "event": "replay.step", "step_id": "s4", "action": "fill", "description": "Enter member ID in search box", "risk": "safe"}
+{"ts": "2026-09-23T10:28:58.954333+00:00", "t_rel": 3.983, "run_id": "replay-20260923-172854-877c41", "event": "replay.step", "step_id": "s5", "action": "click", "description": "Click Search", "risk": "safe"}
+{"ts": "2026-09-23T10:29:02.455465+00:00", "t_rel": 7.484, "run_id": "replay-20260923-172854-877c41", "event": "replay.step", "step_id": "s6", "action": "click", "description": "Click Open link in search results", "risk": "safe"}
+{"ts": "2026-09-23T10:29:12.230674+00:00", "t_rel": 17.259, "run_id": "replay-20260923-172854-877c41", "event": "replay.step", "step_id": "s7", "action": "read", "description": "Read savings balance", "risk": "safe"}
+{"ts": "2026-09-23T10:29:12.274562+00:00", "t_rel": 17.303, "run_id": "replay-20260923-172854-877c41", "event": "replay.read", "step_id": "s7", "output_name": "savings_balance"}
+{"ts": "2026-09-23T10:29:12.309501+00:00", "t_rel": 17.338, "run_id": "replay-20260923-172854-877c41", "event": "replay.success", "outputs": ["savings_balance"]}

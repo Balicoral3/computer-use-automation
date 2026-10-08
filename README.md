@@ -141,3 +141,23 @@ headless Chromium against it. No external services, no API key needed.
 See [REPORT.md](REPORT.md) for the seven-section design document, including
 the artifact schema rationale, the three-way error taxonomy, and the
 heterogeneity and multi-tenant design.
+
+## Evidence
+
+The recorded end-to-end demonstration lives in [evidence/demo/](evidence/demo/):
+
+- [evidence/demo/discovery/](evidence/demo/discovery/) — an LLM-driven discovery
+  run against the mock bank app: per-step `run.jsonl` log, screenshots, and the
+  raw artifact the model produced.
+- [evidence/demo/replay_success/](evidence/demo/replay_success/) — deterministic
+  replay of the reviewed artifact for member `12345`: `kind=success`,
+  `code=OK`, output `savings_balance=$12345.67`.
+- [evidence/demo/replay_business_outcome/](evidence/demo/replay_business_outcome/) —
+  deterministic replay for member `99999`: `kind=business`, `code=NOT_FOUND`.
+  This is the case that shows the error taxonomy in action: "no such member"
+  is a legitimate answer, not a crash.
+- [evidence/demo/artifacts/](evidence/demo/artifacts/) — both the raw
+  LLM-drafted artifact and the reviewed, parameterized version.
+
+See [evidence/demo/README.md](evidence/demo/README.md) for a walkthrough of
+what each folder contains and why the draft-to-reviewed pipeline matters.
